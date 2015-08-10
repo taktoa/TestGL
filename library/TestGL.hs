@@ -45,31 +45,9 @@ glInit cstr = do
 
 -- | Main function
 main :: IO ()
-main =
-    withCString "query-objects" $ \cstr -> do
-        window <- glInit cstr
-        giveContext $ do
-            color_program <- newPipelineVF passThroughVertex2DShader
-                                           coloredFragmentProgram
-                                           mempty
-            color_loc <- getUniformLocation "color" color_program
-            offset_loc <- getUniformLocation "offset" color_program
-            vao <- newVAO
-            pos_vec <- newImmutableBufferFromVector $ V.fromList
-                            [ -0.3, -0.3, 0.0
-                            ,  0.3, -0.3, 0.0
-                            , -0.3,  0.3, 0.0
-                            ,  0.3,  0.3, 0.0 ]
-            sourceVertexData pos_vec
-                             defaultSourcing {
-                                 components = 3
-                               , attributeIndex = 0
-                               , sourceType = SFloat
-                             }
-                             vao
-
-            flip evalStateT initialState $ forever $
-              mainLoop window vao color_program color_loc offset_loc
+main = withCString "query-objects" $ \cstr -> do
+  window <- glInit cstr
+  giveContext $ flip evalStateT initialState $ forever $ mainLoop window
 
 type PgmState = (Bool, Float)
 
@@ -86,10 +64,63 @@ updateState (x, y)
     incr a = a + 0.003
     decr a = a - 0.003
 
-mainLoop window vao color_program color_loc offset_loc = do
-  clear clearing { clearDepth = Just 1.0
-                 , clearColor = Just $ rgba 0.1 0.1 0.1 1.0 }
-        screenFramebuffer
+clearFB = clear clearing { clearDepth = Just 1.0
+                         , clearColor = Just $ rgba 0.1 0.1 0.1 1.0 }
+
+type Matrix2D e = [[e]]  -- ^ 2D matrix
+type PC = Int            -- ^ Pixel coordinate
+type TC = Int            -- ^ Tile map coordinates
+type V2 a = (a, a)       -- ^ 2-vector
+type V3 a = (a, a, a)    -- ^ 3-vector
+type V4 a = (a, a, a, a) -- ^ 4-vector
+
+type PixelCoord  = V2 PC
+type PixelDim    = V2 PC
+type Pixel       = Graphics.Caramia.Color
+type TileDim     = V2 TC
+type TileCoord   = V2 TC
+type Sprite      = Matrix2D Pixel
+
+type PixelRect   = V2 PixelCoord
+
+class TileMap tm where
+  -- | Get a matrix of sprites out of the tilemap
+  getTMap :: tm -> Matrix2D Sprite
+  getTMap = undefined
+
+  -- | Get the tile coordinate dimensions of the tilemap
+  getTMCSize :: tm -> TileDim
+  getTMCSize = undefined
+
+  -- | Get the dimensions of each sprite in the tilemap
+  getTMSSize :: tm -> PixelDim
+  getTMSSize = undefined
+
+  -- | Get the pixel dimensions of the tilemap
+  getTMPSize :: tm -> PixelDim
+  getTMPSize = undefined
+
+  -- | Verify that a given tilemap is valid
+  verifyTileMap :: tm -> Bool
+  verifyTileMap = undefined
+
+  -- | Make a TileMap concrete
+  renderTMap :: tm -> tm
+  renderTMap = undefined
+
+  -- | Index into a TileMap
+  indexTMap :: tm -> TileCoord -> Sprite
+  indexTMap = undefined
+
+  -- | Make a sprite from a rectangle between two pixel coordinates
+  getTMapRect :: tm -> PixelRect -> Sprite
+  getTMapRect = undefined
+
+  -- |
+
+
+mainLoop window = do
+  clearFB screenFramebuffer
 
   let drawParams = defaultDrawParams { pipeline = color_program
                                      , fragmentPassTests =
